@@ -175,8 +175,10 @@ exports.spendingHabit = async (req, res) => {
     let monthlyCost = weeklyCost * 4.3; // Approximate monthly cost
     let yearlyCost = monthlyCost * 12;
 
+    // Fixed Returns
     const sp500HistoricalReturn = 10.67;
     const tenYearTreasuryReturn = 5.6;
+    const fixedUserReturn = 8.0; // User-defined return for TIC calculation
 
     // Future value function
     function calculateFutureValue(rate, nper, pmt, pv, type) {
@@ -187,7 +189,7 @@ exports.spendingHabit = async (req, res) => {
       );
     }
 
-    // Calculate main projections
+    // Calculate savings projections
     const nper = yearsBeforeRetirement;
     const pv = 0;
     const type = 0;
@@ -196,9 +198,16 @@ exports.spendingHabit = async (req, res) => {
     const TTCSavingSP500Return = calculateFutureValue(sp500HistoricalReturn, nper, yearlyCost, pv, type);
     const TTCSaving10YrTreasurReturn = calculateFutureValue(tenYearTreasuryReturn, nper, yearlyCost, pv, type);
 
+    // Calculate Total Contributions
     const TTCSavings = TTCSavingReturn;
     const TCA = yearlyCost * yearsBeforeRetirement;
     const TotalInterest = TTCSavings - TCA;
+
+    // **TIC (Total Interest Cost) Calculations**
+    const TIC_UserReturn = calculateFutureValue(fixedUserReturn, nper, yearlyCost, 0, 0) - TCA;
+    const TIC_SP500 = calculateFutureValue(sp500HistoricalReturn, nper, yearlyCost, 0, 0) - TCA;
+    const TIC_Treasury = calculateFutureValue(tenYearTreasuryReturn, nper, yearlyCost, 0, 0) - TCA;
+
     let projectionData = [];
     let totalSavings = 0;
     let year = 0;
@@ -217,6 +226,7 @@ exports.spendingHabit = async (req, res) => {
       year += 5; // Adjust interval dynamically
     }
     projectionData.pop();
+
     // Save data to DB
     const calculated_data = new spendingHabitModel({
       userId: req.user.id,
@@ -239,23 +249,23 @@ exports.spendingHabit = async (req, res) => {
       TTCSavings: TTCSavings.toFixed(2),
       TCA: TCA.toFixed(2),
       TotalInterest: TotalInterest.toFixed(2),
+      TIC_UserReturn: TIC_UserReturn.toFixed(2),
+      TIC_SP500: TIC_SP500.toFixed(2),
+      TIC_Treasury: TIC_Treasury.toFixed(2),
     });
-
-    // Dynamic projection until TTCSavingReturn is reached
-
 
     await calculated_data.save();
 
     return res.status(201).json({
       message: "Spending Habit calculation is created and recorded",
       calculated_data,
-      // projectionData,
     });
 
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", details: err.message });
   }
 };
+
 //___________________   Get all Spending Habits list   _______________________
 
 exports.getAllSpendingHabits = async (req, res) => {
@@ -304,7 +314,6 @@ exports.updateSpendingHabit = async (req, res) => {
       return res.status(404).json({ error: "Spending habit not found" });
     }
 
-    // Update fields if provided
     spendingHabit.habit = habit || spendingHabit.habit;
     spendingHabit.frequency = frequency || spendingHabit.frequency;
     spendingHabit.avg_cost = avg_cost || spendingHabit.avg_cost;
@@ -315,15 +324,14 @@ exports.updateSpendingHabit = async (req, res) => {
     let newroi = annualReturn || spendingHabit.annualReturn || 7;
     const annualReturnPercentage = newroi;
 
-    // Calculate costs
     let weeklyCost = spendingHabit.frequency * spendingHabit.avg_cost;
     let monthlyCost = weeklyCost * 4.3;
     let yearlyCost = monthlyCost * 12;
 
     const sp500HistoricalReturn = 10.67;
     const tenYearTreasuryReturn = 5.6;
+    const TICReturn = 8;
 
-    // Future value function
     function calculateFutureValue(rate, nper, pmt, pv, type) {
       rate = rate / 100;
       return (
@@ -332,52 +340,18 @@ exports.updateSpendingHabit = async (req, res) => {
       );
     }
 
-    // Future projections
-    const nper = yearsBeforeRetirement;
-    const TTCSavingReturn = calculateFutureValue(annualReturnPercentage, nper, yearlyCost, 0, 0);
-    const TTCSavingSP500Return = calculateFutureValue(sp500HistoricalReturn, nper, yearlyCost, 0, 0);
-    const TTCSaving10YrTreasurReturn = calculateFutureValue(tenYearTreasuryReturn, nper, yearlyCost, 0, 0);
+    spendingHabit.TICSavingReturn = calculateFutureValue(TICReturn, yearsBeforeRetirement, yearlyCost, 0, 0).toFixed(2);
+    spendingHabit.TICSavingSP500Return = calculateFutureValue(sp500HistoricalReturn, yearsBeforeRetirement, yearlyCost, 0, 0).toFixed(2);
+    spendingHabit.TICSaving10YrTreasurReturn = calculateFutureValue(tenYearTreasuryReturn, yearsBeforeRetirement, yearlyCost, 0, 0).toFixed(2);
 
-    const TTCSavings = TTCSavingReturn;
-    const TCA = yearlyCost * yearsBeforeRetirement;
-    const TotalInterest = TTCSavings - TCA;
-    let projectionData = [];
-    let totalSavings = 0;
-    let year = 0;
-    while (totalSavings < TTCSavingReturn) {
-      let yearlyIncrease = totalSavings * (annualReturnPercentage / 100) + yearlyCost;
-      totalSavings += yearlyIncrease;
-      projectionData.push({
-        year: year,
-        annualReturn: totalSavings.toFixed(2),
-        sp500HistoricalReturn: calculateFutureValue(sp500HistoricalReturn, year, yearlyCost, 0, 0).toFixed(2),
-        tenYearTreasuryReturn: calculateFutureValue(tenYearTreasuryReturn, year, yearlyCost, 0, 0).toFixed(2),
-      });
-      year += 5;
-    }
-    projectionData.pop();
-    // Update document
-    spendingHabit.yearsBeforeRetirement = yearsBeforeRetirement;
-    spendingHabit.weeklyCost = weeklyCost.toFixed(2);
-    spendingHabit.monthlyCost = monthlyCost.toFixed(2);
-    spendingHabit.yearlyCost = yearlyCost.toFixed(2);
-    spendingHabit.annualReturn = annualReturnPercentage.toFixed(2);
-    spendingHabit.sp500HistoricalReturn = sp500HistoricalReturn;
-    spendingHabit.tenYearTreasuryReturn = tenYearTreasuryReturn;
-    spendingHabit.TTCSavingReturn = TTCSavingReturn.toFixed(2);
-    spendingHabit.TTCSavingSP500Return = TTCSavingSP500Return.toFixed(2);
-    spendingHabit.TTCSaving10YrTreasurReturn = TTCSaving10YrTreasurReturn.toFixed(2);
-    spendingHabit.TTCSavings = TTCSavings.toFixed(2);
-    spendingHabit.TCA = TCA.toFixed(2);
-    spendingHabit.TotalInterest = TotalInterest.toFixed(2);
-    spendingHabit.projectionData = projectionData
     await spendingHabit.save();
+
     return res.status(200).json({
       message: "Spending habit updated successfully",
       updated_data: spendingHabit,
-
     });
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", details: err.message });
   }
 };
+

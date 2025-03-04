@@ -293,21 +293,17 @@ exports.getAllPurchases = async (req, res) => {
     if (!userCheck) {
       return res.status(404).json({ error: "No user found by this id" });
     }
-
     const all_purchases = await purchaseModel
       .find({ userId: req.user.id })
       .sort({ createdAt: -1 });
-
     if (!all_purchases.length) {
       return res.status(404).json({ error: "No purchases found" });
     }
-
     return res.status(200).json({ message: "All purchases:", all_purchases });
   } catch (err) {
     return res.status(500).json({ error: "Internal server error" });
   }
 };
-
 //updating purchase form
 exports.updatePurchase = async (req, res) => {
   try {
