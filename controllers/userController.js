@@ -5,6 +5,9 @@ const generateRandomString = require("../utils/generateRandomString");
 const otpResetModel = require("../models/otpResetModel");
 const accountMail = require("../utils/sendEmail");
 const User = require("../models/User.js");
+const appleSignIn = require("apple-signin-auth")
+const Purchase=require("../models/purchaseModel.js")
+const Habit_Spend=require("../models/spendingHabitModel.js")
 const { OAuth2Client } = require("google-auth-library");
 const {
   S3Client,
@@ -54,7 +57,7 @@ const Signup = async (req, res) => {
   } catch (err) {
     res
       .status(500)
-      .json({ code: 500, message: "Error while Registering User" });
+      .json({ code: 500, message: "Error while Registering User",err });
   }
 };
 
@@ -376,6 +379,8 @@ const DeleteUser = async (req, res) => {
       return res.status(404).json({ code: 404, message: "User not found" });
     }
     await User.findByIdAndDelete(userId);
+    await Purchase.findByIdAndDelete(userId);
+    await Habit_Spend.findByIdAndDelete(userId);
     res.status(200).json({ code: 200, message: "User deleted successfully" });
   } catch (error) {
     res
@@ -413,6 +418,69 @@ const EditProfile = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+// apple login
+const loginWithApple = async (req, res, next) => {
+  const { idToken } = req.body;
+
+  try {
+    const { email, sub, email_verified } = await appleSignIn.verifyIdToken(idToken, {
+      audience: process.env.APPLE_CLIENT_ID,
+    });
+
+    if (!email) {
+      return res.status(400).json({ message: "Unable to retrieve email from Apple ID" });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      if (email_verified) {
+        user = new User({
+          username: email.split("@")[0],
+          email,
+          profileImage: "",
+          userType: userType || "",
+          account_type: "apple",
+        });
+
+        await user.save();
+      } else {
+        return res.status(400).json({ message: "Apple ID not verified" });
+      }
+    } else {
+      let updated = false;
+
+      if (userType && user.userType !== userType) {
+        user.userType = userType;
+        updated = true;
+      }
+
+      if (!user.account_type) {
+        user.account_type = "apple";
+        updated = true;
+      }
+
+      if (updated) {
+        await user.save();
+      }
+    }
+
+    // Generate JWT token for the user
+    const accessToken = Jwt.sign(
+      { isAdmin: user.isAdmin, _id: user._id },
+      process.env.JWT_SEC,
+      { expiresIn: "30d" }
+    );
+
+    // Exclude password from response
+    const { password, ...others } = user._doc;
+    res.status(200).json({ ...others, accessToken });
+
+  } catch (error) {
+    console.error("Error while logging in with Apple:", error);
+    res.status(400).json({ message: "Error while logging in with Apple: " + error.message });
+  }
+};
 module.exports = {
   Signup,
   Login,
@@ -428,4 +496,5 @@ module.exports = {
   GetAllAdmins,
   EditProfile,
   GoogleLoginOrSignup,
+  loginWithApple
 };

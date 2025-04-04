@@ -16,7 +16,8 @@ const {
   DeleteUser,
   GetAllAdmins,
   EditProfile,
-  GoogleLoginOrSignup
+  GoogleLoginOrSignup,
+  loginWithApple
 } = require("../controllers/userController");
 
 router.post("/signup", Signup);
@@ -35,5 +36,5 @@ router.get("/getUserById/:userId", GetUserDetails);
 router.delete("/deleteuser/:userId", DeleteUser);
 router.get("/getalladmin", GetAllAdmins);
 router.put("/edittadmin/:userId", EditProfile);
-
+router.post("/applelogin",loginWithApple)
 module.exports = router;

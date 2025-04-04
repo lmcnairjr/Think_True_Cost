@@ -35,6 +35,10 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    account_type:{
+      type:String,
+      default:""
+    }
   },
   { timestamps: true }
 );

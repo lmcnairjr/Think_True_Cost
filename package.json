@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.651.0",
+    "apple-signin-auth": "^1.7.8",
     "aws-sdk": "^2.1621.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
