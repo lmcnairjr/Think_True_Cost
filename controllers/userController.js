@@ -439,7 +439,6 @@ const loginWithApple = async (req, res, next) => {
           username: email.split("@")[0],
           email,
           profileImage: "",
-          userType: userType || "",
           account_type: "apple",
         });
 
@@ -450,10 +449,10 @@ const loginWithApple = async (req, res, next) => {
     } else {
       let updated = false;
 
-      if (userType && user.userType !== userType) {
-        user.userType = userType;
-        updated = true;
-      }
+      // if (userType && user.userType !== userType) {
+      //   user.userType = userType;
+      //   updated = true;
+      // }
 
       if (!user.account_type) {
         user.account_type = "apple";
