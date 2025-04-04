@@ -473,7 +473,12 @@ const loginWithApple = async (req, res, next) => {
 
     // Exclude password from response
     const { password, ...others } = user._doc;
-    res.status(200).json({ ...others, accessToken });
+    res.status(200).json({
+      code: 200,
+      message: "User Logged In Successfully",
+      ...others,
+      accessToken,
+    });
 
   } catch (error) {
     console.error("Error while logging in with Apple:", error);
