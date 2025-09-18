@@ -304,16 +304,19 @@ exports.updateSpendingHabit = async (req, res) => {
       annualReturn,
     } = req.body;
 
+    const { id } = req.params;
+
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const spendingHabit = await spendingHabitModel.findOne({ userId: req.user.id });
+    let spendingHabit = await spendingHabitModel.findOne({ _id: id, userId: req.user.id });
     if (!spendingHabit) {
       return res.status(404).json({ error: "Spending habit not found" });
     }
 
+    // update fields if provided
     spendingHabit.habit = habit || spendingHabit.habit;
     spendingHabit.frequency = frequency || spendingHabit.frequency;
     spendingHabit.avg_cost = avg_cost || spendingHabit.avg_cost;
@@ -350,8 +353,10 @@ exports.updateSpendingHabit = async (req, res) => {
       message: "Spending habit updated successfully",
       updated_data: spendingHabit,
     });
+
   } catch (err) {
     return res.status(500).json({ error: "Internal server error", details: err.message });
   }
 };
+
 
