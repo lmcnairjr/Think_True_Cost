@@ -10,4 +10,4 @@ router.delete('/delete_photo', authorizationMiddleware, deletePhoto)
 
 // profileRouter.put('update_profile', upload.single('profile_pic'), updateProfile )
 
-module.exports = router
+module.exports = router;
