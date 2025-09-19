@@ -1,0 +1,15 @@
+{
+  "default_branch": "master",
+  "branches": [
+    "fix/calculation-values",
+    "master"
+  ],
+  "parent": {
+    "fix/calculation-values": "master",
+    "master": null
+  },
+  "order": [
+    "master",
+    "fix/calculation-values"
+  ]
+}
