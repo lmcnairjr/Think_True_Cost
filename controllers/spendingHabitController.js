@@ -316,13 +316,14 @@ exports.updateSpendingHabit = async (req, res) => {
       return res.status(404).json({ error: "Spending habit not found" });
     }
 
-    // update fields if provided
+    // update base fields
     spendingHabit.habit = habit || spendingHabit.habit;
     spendingHabit.frequency = frequency || spendingHabit.frequency;
     spendingHabit.avg_cost = avg_cost || spendingHabit.avg_cost;
     spendingHabit.currentAge = currentAge || spendingHabit.currentAge;
     spendingHabit.retirementAge = retirementAge || spendingHabit.retirementAge;
 
+    // ========== Recalculate all financial fields ==========
     const yearsBeforeRetirement = spendingHabit.retirementAge - spendingHabit.currentAge;
     let newroi = annualReturn || spendingHabit.annualReturn || 7;
     const annualReturnPercentage = newroi;
@@ -331,9 +332,10 @@ exports.updateSpendingHabit = async (req, res) => {
     let monthlyCost = weeklyCost * 4.3;
     let yearlyCost = monthlyCost * 12;
 
+    // Fixed Returns
     const sp500HistoricalReturn = 10.67;
     const tenYearTreasuryReturn = 5.6;
-    const TICReturn = 8;
+    const fixedUserReturn = 8.0; // For TIC calculation
 
     function calculateFutureValue(rate, nper, pmt, pv, type) {
       rate = rate / 100;
@@ -343,9 +345,63 @@ exports.updateSpendingHabit = async (req, res) => {
       );
     }
 
-    spendingHabit.TICSavingReturn = calculateFutureValue(TICReturn, yearsBeforeRetirement, yearlyCost, 0, 0).toFixed(2);
-    spendingHabit.TICSavingSP500Return = calculateFutureValue(sp500HistoricalReturn, yearsBeforeRetirement, yearlyCost, 0, 0).toFixed(2);
-    spendingHabit.TICSaving10YrTreasurReturn = calculateFutureValue(tenYearTreasuryReturn, yearsBeforeRetirement, yearlyCost, 0, 0).toFixed(2);
+    // Main savings projections
+    const nper = yearsBeforeRetirement;
+    const pv = 0;
+    const type = 0;
+
+    const TTCSavingReturn = calculateFutureValue(annualReturnPercentage, nper, yearlyCost, pv, type);
+    const TTCSavingSP500Return = calculateFutureValue(sp500HistoricalReturn, nper, yearlyCost, pv, type);
+    const TTCSaving10YrTreasurReturn = calculateFutureValue(tenYearTreasuryReturn, nper, yearlyCost, pv, type);
+
+    // Contributions & interest
+    const TCA = yearlyCost * yearsBeforeRetirement;
+    const TTCSavings = TTCSavingReturn;
+    const TotalInterest = TTCSavings - TCA;
+
+    // TIC calculations
+    const TIC_UserReturn = calculateFutureValue(fixedUserReturn, nper, yearlyCost, 0, 0) - TCA;
+    const TIC_SP500 = calculateFutureValue(sp500HistoricalReturn, nper, yearlyCost, 0, 0) - TCA;
+    const TIC_Treasury = calculateFutureValue(tenYearTreasuryReturn, nper, yearlyCost, 0, 0) - TCA;
+
+    // Projection data
+    let projectionData = [];
+    let totalSavings = 0;
+    let year = 0;
+
+    while (totalSavings < TTCSavingReturn) {
+      let yearlyIncrease = totalSavings * (annualReturnPercentage / 100) + yearlyCost;
+      totalSavings += yearlyIncrease;
+
+      projectionData.push({
+        year: year,
+        annualReturn: totalSavings.toFixed(2),
+        sp500HistoricalReturn: calculateFutureValue(sp500HistoricalReturn, year, yearlyCost, 0, 0).toFixed(2),
+        tenYearTreasuryReturn: calculateFutureValue(tenYearTreasuryReturn, year, yearlyCost, 0, 0).toFixed(2),
+      });
+
+      year += 5;
+    }
+    projectionData.pop();
+
+    // ========== Save recalculated values ==========
+    spendingHabit.yearsBeforeRetirement = yearsBeforeRetirement;
+    spendingHabit.weeklyCost = weeklyCost.toFixed(2);
+    spendingHabit.monthlyCost = monthlyCost.toFixed(2);
+    spendingHabit.yearlyCost = yearlyCost.toFixed(2);
+    spendingHabit.annualReturn = annualReturnPercentage;
+    spendingHabit.sp500HistoricalReturn = sp500HistoricalReturn;
+    spendingHabit.tenYearTreasuryReturn = tenYearTreasuryReturn;
+    spendingHabit.projectionData = projectionData;
+    spendingHabit.TTCSavingReturn = TTCSavingReturn.toFixed(2);
+    spendingHabit.TTCSavingSP500Return = TTCSavingSP500Return.toFixed(2);
+    spendingHabit.TTCSaving10YrTreasurReturn = TTCSaving10YrTreasurReturn.toFixed(2);
+    spendingHabit.TTCSavings = TTCSavings.toFixed(2);
+    spendingHabit.TCA = TCA.toFixed(2);
+    spendingHabit.TotalInterest = TotalInterest.toFixed(2);
+    spendingHabit.TIC_UserReturn = TIC_UserReturn.toFixed(2);
+    spendingHabit.TIC_SP500 = TIC_SP500.toFixed(2);
+    spendingHabit.TIC_Treasury = TIC_Treasury.toFixed(2);
 
     await spendingHabit.save();
 
@@ -358,5 +414,7 @@ exports.updateSpendingHabit = async (req, res) => {
     return res.status(500).json({ error: "Internal server error", details: err.message });
   }
 };
+
+
 
 
